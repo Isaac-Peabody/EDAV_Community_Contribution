@@ -1,0 +1,106 @@
+---
+title: "Community Contribution: Correlation Matrix Heatmap"
+author: "Isaac Peabody - Columbia University Fall 2023"
+execute:
+  message: false
+  warning: false
+format: html
+knitr:
+  opts_chunk: 
+    out.width: 70%
+    fig.width: 7
+    fig.height: 4
+    fig.align: center    
+    
+editor: source
+---
+
+### Step 1: Correlation Matrix
+
+While R gives us many ways to graph continous variables, it can be a struggle to view relationships between many continuous variables. One of the most intuitive methods is to make a series of scatterplots for each pair of continuous variables, but as the number of continuous variables becomes large, these plots become less and less effective. Below, I present a new method to visualize relationships between many continuous variables simultaneously, via a correlation matrix. I then show you how to cluster rows and columns in this correlation matrix in order to see which continuous variables are most-closely related.
+
+First, we need to load in our data. For this demonstration, I am going to use the Life Expectancy dataset from the World Health Organization, which can be found here: https://www.kaggle.com/datasets/kumarajarshi/life-expectancy-who. This dataset contains 20 different categorical variables, which, if viewed as a scatterplot matrix, would result in 400 different scatterplots. Below, we can see how this method, while effective for a limited number of continuous variables, falls apart as you increase the number of variables you try to visualize.
+
+```{r}
+lifeexpectancydata <- read.csv("Life Expectancy Data.csv")
+lifeexpectancydata <- na.omit(lifeexpectancydata)
+
+library(dplyr)
+
+lifedataconstlimited <- lifeexpectancydata |> select(c(BMI, GDP,Life.expectancy))
+
+plot1 <- plot(lifedataconstlimited, pch = 16)
+
+lifedataconst <- lifeexpectancydata |> select(-c(Country, Status))
+
+plot2 <- plot(lifedataconst, pch = 16)
+```
+
+
+Instead, we utilize a correlation matrix, which just shows the correlation coefficient for each simple linear regression analysis between two variables.
+
+```{r}
+#| fig-height: 7
+library(dplyr)
+library(corrplot)
+
+lifeexpectancydata <- read.csv("Life Expectancy Data.csv")
+lifeexpectancydata <- na.omit(lifeexpectancydata)
+lifedataconst <- lifeexpectancydata |> select(-c(Country, Status))
+cormatrix <- cor(lifedataconst)
+corrplot(cormatrix)
+```
+In the correlation matrix above, each circle represents a correlation coefficient between the respective row and column continuous variables. We can further update the parameters to `corrplot()` to make the graph more visually appealing, including changing the color / font of the text and the default color gradient used.
+
+```{r}
+#| fig-height: 7
+corrplot(cormatrix, tl.col = "black", tl.cex = 0.8, col= colorRampPalette(c("blue","white", "red"))(200))
+```
+
+Additionally, we can do some simple clustering of the categorical variables using the `order` parameter, specifically using the `hclust` and `addrect` options to do heirarchical clustering with a set number of clusters.
+
+```{r}
+#| fig-height: 7
+
+
+corrplot(cormatrix, tl.col = "black", tl.cex = 0.8, col= colorRampPalette(c("blue","white", "red"))(200), order = 'hclust', addrect = 2)
+
+
+```
+
+However, this method is rather imprecise, as we are setting the number of clusters manually based on visual observation. To improve our clustering, we can generate the complete heirarchical clustering tree, and then overlay this tree on top of our correlation matrix to get a more complete overview of the clustering process. This operation is done by first converting our correlation matrix to a series of distances, which allows us to generate a tree object using the `hclust` function. `hclust` can take several parameters, but for purposes of this demonstration we will just use the `method` parameter to do the default `complete` method of heirarchical clustering. We then represent our tree as a dendrogram using the `as.dendrogram` function within the `dendextend` package, which enables us to directly analyze properties of the tree we've created using the various functions within `dendextend`. In particular, we use the `ladderize` function, which enables us to get the internal structure of the tree for plotting later.
+
+```{r}
+library(dendextend)
+
+cormatrix.dist <- as.dist(1 - cormatrix)
+
+cormatrix.tree <- hclust(cormatrix.dist, method="complete")
+
+cormatrix.dend <- as.dendrogram(cormatrix.tree)
+```
+
+Finally, we can plot our new correlation matrix with the heirarchical clustering overlayed using the `heatmap.2` function within the `gplots` package. `heatmap.2` takes a number of parameters, which are specified below.
+```{r}
+#| fig-height: 7
+library(gplots)
+library(dendextend)
+cormatrix.dist <- as.dist(1 - cormatrix)
+cormatrix.tree <- hclust(cormatrix.dist, method="complete")
+cormatrix.dend <- as.dendrogram(cormatrix.tree)
+heatmap.2(cormatrix, 
+          Rowv = ladderize(cormatrix.dend), Colv = ladderize(cormatrix.dend), 
+          dendrogram = "both", revC = TRUE, trace = "none", 
+          density.info = "none",
+          col = colorRampPalette(c("blue","white", "red"))(200), key = TRUE)
+```
+
+Further Resources:
+
+* https://cran.r-project.org/web/packages/corrplot/vignettes/corrplot-intro.html
+* https://bio723-class.github.io/Bio723-book/clustering-in-r.html
+* https://cran.r-project.org/web/packages/dendextend/vignettes/dendextend.html
+* https://www.rdocumentation.org/packages/ape/versions/5.7-1/topics/ladderize
+* https://stackoverflow.com/questions/30743983/how-to-change-color-scheme-in-corrplot
+
+
